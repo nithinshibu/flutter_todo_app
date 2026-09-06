@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
+// Widget test for the Todo application.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Updated in Subtask 1.5: verifies the full home screen (with FAB),
+// and that the todo list appears correctly on launch.
+//
+// The test boots TodoApp — which goes through the full
+// main() → TodoApp → MaterialApp → TodoHomeScreen chain.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:todo_app/main.dart';
+import 'package:todo_app/app/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('TodoApp launches and shows the home screen with todos', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const TodoApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify the AppBar title is visible.
+    expect(find.text('My Todos'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify at least one of the mock todos appears.
+    expect(find.text('Learn Flutter'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify the FloatingActionButton is present.
+    expect(find.byTooltip('Add Todo'), findsOneWidget);
   });
 }
