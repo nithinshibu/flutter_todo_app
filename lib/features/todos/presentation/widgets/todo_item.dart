@@ -41,10 +41,17 @@ class TodoItem extends StatelessWidget {
   //   [Parameter] public EventCallback OnToggle { get; set; }
   final VoidCallback onToggle;
 
+  // onEdit — called when the user taps the edit (pencil) icon button.
+  // The parent navigates to EditTodoScreen when this fires.
+  // Same delegation principle as onToggle — the widget raises the event,
+  // the parent decides what to do with it.
+  final VoidCallback onEdit;
+
   const TodoItem({
     super.key,
     required this.todo,
-    required this.onToggle, // required — every TodoItem must be toggleable
+    required this.onToggle,
+    required this.onEdit, // added in Subtask 1.5
   });
 
   String _priorityLabel(TodoPriority priority) {
@@ -88,7 +95,7 @@ class TodoItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Row 1: Completion indicator + Title ────────────────────
+              // ── Row 1: Completion indicator + Title + Edit button ──────
               Row(
                 children: [
                   Icon(
@@ -111,6 +118,26 @@ class TodoItem extends StatelessWidget {
                         color: todo.isCompleted ? Colors.grey : null,
                       ),
                     ),
+                  ),
+
+                  // Edit icon button in the trailing position.
+                  //
+                  // IconButton handles its OWN tap independently of the
+                  // surrounding InkWell. When the user taps this icon,
+                  // only onEdit() fires — not onToggle().
+                  //
+                  // This works because IconButton uses its own GestureDetector
+                  // internally, which absorbs the tap before InkWell sees it.
+                  //
+                  // .NET Parallel: A button inside a ListViewItem that handles
+                  //   its own Click event without selecting the item.
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    iconSize: 18.0,
+                    color: Colors.grey.shade500,
+                    tooltip: 'Edit todo',
+                    // Call onEdit — the parent will navigate to EditTodoScreen
+                    onPressed: onEdit,
                   ),
                 ],
               ),

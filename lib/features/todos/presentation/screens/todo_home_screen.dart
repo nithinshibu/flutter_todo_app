@@ -1,82 +1,27 @@
 // TodoHomeScreen — The main Todo list screen.
 //
-// Updated in Subtask 1.4:
-//   - Converted from StatelessWidget to StatefulWidget
-//   - The Todo list is now mutable state owned by _TodoHomeScreenState
-//   - _toggleTodo() updates a todo's isCompleted using copyWith() + setState()
-//   - TodoItem receives an onToggle callback pointing at _toggleTodo
-//
-// WHY StatefulWidget now?
-//   In Subtask 1.3 the data was static — it never changed.
-//   A StatelessWidget is perfect for that.
-//   Now we need the screen to REACT to user input (tapping a todo).
-//   The list must update and the UI must rebuild.
-//   That requires STATE — and StatefulWidget is how Flutter manages
-//   local mutable state.
-//
-// .NET Parallel:
-//   Think of this like converting a read-only Razor Page into one
-//   with a mutable ViewModel that raises PropertyChanged notifications.
+// Updated in Subtask 1.5:
+//   - Added _navigateToAdd() — pushes AddTodoScreen, awaits result, adds todo
+//   - Added _navigateToEdit() — pushes EditTodoScreen, awaits result, updates todo
+//   - Added _deleteTodo() — removes a todo from the list via setState
+//   - Added FloatingActionButton to navigate to AddTodoScreen
+//   - Passes onEdit callback to TodoItem
+//   - Introduces async/await with Navigator and the 'mounted' safety check
 
 import 'package:flutter/material.dart';
 import 'package:todo_app/features/todos/models/todo.dart';
+import 'package:todo_app/features/todos/presentation/screens/add_todo_screen.dart';
+import 'package:todo_app/features/todos/presentation/screens/edit_todo_screen.dart';
 import 'package:todo_app/features/todos/presentation/widgets/todo_item.dart';
-
-// ── StatefulWidget ─────────────────────────────────────────────────────────
-//
-// A StatefulWidget is split into TWO classes in Dart:
-//
-//   1. The widget class (TodoHomeScreen)
-//      - Immutable, like all widgets
-//      - Its only job is to create the State object
-//      - Holds configuration that doesn't change (e.g., constructor params)
-//
-//   2. The State class (_TodoHomeScreenState)
-//      - Mutable — this is where variables that change over time live
-//      - Owns the build() method
-//      - Calling setState() here triggers a UI rebuild
-//
-// Why two classes?
-//   Flutter's architecture keeps the widget blueprint (cheap, immutable)
-//   separate from the mutable state (long-lived). This allows Flutter to
-//   recreate widget objects frequently without losing state.
-//
-// .NET Parallel:
-//   StatefulWidget ≈ the ViewModel class declaration
-//   State          ≈ the ViewModel instance with its observable properties
 
 class TodoHomeScreen extends StatefulWidget {
   const TodoHomeScreen({super.key});
 
-  // createState() is called once by Flutter when this widget is first
-  // inserted into the widget tree. It returns the associated State object.
-  // After that, Flutter keeps the State alive until the widget is removed.
   @override
   State<TodoHomeScreen> createState() => _TodoHomeScreenState();
 }
 
-// ── State class ─────────────────────────────────────────────────────────────
-//
-// The leading underscore (_) makes this class private to this file.
-// External code should never need to reference _TodoHomeScreenState directly.
-//
-// .NET Parallel: A private implementation class / ViewModel backing class.
 class _TodoHomeScreenState extends State<TodoHomeScreen> {
-  // _todos is the mutable list of Todo items.
-  //
-  // It lives here in the State because it needs to:
-  //   1. Survive widget rebuilds (StatelessWidget cannot do this)
-  //   2. Change in response to user actions
-  //   3. Trigger a UI update when changed (via setState)
-  //
-  // The underscore prefix makes it private to this class.
-  //
-  // .NET Parallel:
-  //   private ObservableCollection<Todo> _todos = new() { ... };
-  //
-  // Note: In Subtask 1.7 this list will move into a Riverpod provider.
-  //   For now, local State is the right tool — we don't yet need to share
-  //   this state with other screens.
   List<Todo> _todos = [
     const Todo(
       id: '1',
@@ -115,99 +60,160 @@ class _TodoHomeScreenState extends State<TodoHomeScreen> {
     ),
   ];
 
-  // ── _toggleTodo() — The state-change method ─────────────────────────────
-  //
-  // Called when the user taps a TodoItem card.
-  // Receives the id of the todo that was tapped.
-  //
-  // The flow every time a todo is tapped:
-  //
-  //   User taps card
-  //       ↓
-  //   InkWell.onTap fires
-  //       ↓
-  //   onToggle() callback in TodoItem is called
-  //       ↓
-  //   _toggleTodo(id) is called here
-  //       ↓
-  //   setState() is called
-  //       ↓
-  //   Flutter knows state changed → schedules a rebuild
-  //       ↓
-  //   build() runs again with updated _todos
-  //       ↓
-  //   ListView rebuilds the affected TodoItem with new isCompleted value
-  //       ↓
-  //   UI updates on screen
-  //
-  // .NET Parallel:
-  //   private void ToggleTodo(string id) {
-  //       var todo = _todos.FirstOrDefault(t => t.Id == id);
-  //       if (todo != null) todo.IsCompleted = !todo.IsCompleted;
-  //       // PropertyChanged / StateHasChanged equivalent → setState()
-  //   }
+  // ── _toggleTodo() — Unchanged from Subtask 1.4 ──────────────────────────
   void _toggleTodo(String id) {
-    // setState() is the Flutter signal that says:
-    //   "Something inside my State has changed — please rebuild my widget."
-    //
-    // The function passed to setState() is where you actually mutate state.
-    // Flutter guarantees build() will be called again after setState() completes.
-    //
-    // IMPORTANT: Always mutate state INSIDE the setState callback, not before.
     setState(() {
-      // map() iterates every todo in the list and transforms each one.
-      // For the todo with the matching id, we produce a toggled copy.
-      // For all others, we return them unchanged.
-      //
-      // This is the immutable update pattern:
-      //   - We never do: todo.isCompleted = !todo.isCompleted (compile error!)
-      //   - We use copyWith() to create a NEW Todo with the updated field
-      //   - We replace the entire list with a new list
-      //
-      // .NET Parallel (LINQ):
-      //   _todos = _todos.Select(t =>
-      //       t.Id == id ? t with { IsCompleted = !t.IsCompleted } : t
-      //   ).ToList();
       _todos = _todos.map((todo) {
         if (todo.id == id) {
-          // This todo was tapped — return a copy with toggled isCompleted
           return todo.copyWith(isCompleted: !todo.isCompleted);
         }
-        // This todo was not tapped — return it unchanged
         return todo;
-      }).toList(); // .toList() converts the lazy Iterable back to a List
+      }).toList();
     });
+  }
+
+  // ── _deleteTodo() — Remove a todo from the list ──────────────────────────
+  //
+  // Called from EditTodoScreen via the onDelete callback.
+  // Uses List.where() to keep only todos that do NOT have the given id.
+  //
+  // .NET Parallel (LINQ):
+  //   _todos = _todos.Where(t => t.Id != id).ToList();
+  void _deleteTodo(String id) {
+    setState(() {
+      _todos = _todos.where((todo) => todo.id != id).toList();
+    });
+  }
+
+  // ── _navigateToAdd() — Navigate to AddTodoScreen ─────────────────────────
+  //
+  // This method is 'async' because Navigator.push returns a Future.
+  // We 'await' it so we can read the result when the user comes back.
+  //
+  // Navigator.push<Todo>(context, route):
+  //   - Pushes a new screen onto the navigation stack.
+  //   - The <Todo> type parameter tells Dart what type to expect back.
+  //   - Returns a Future<Todo?> — null if the user cancelled (pressed back).
+  //
+  // MaterialPageRoute:
+  //   - The standard slide-transition route in Material apps.
+  //   - builder: receives a context and returns the screen widget.
+  //
+  // .NET Parallel:
+  //   await navigationService.NavigateToAsync("AddTodo");
+  //   var result = dialog.ShowDialog(); // returns DialogResult + data
+  //
+  // 'mounted' check:
+  //   After any 'await', the widget might have been removed from the tree
+  //   (e.g., user navigated away). Calling setState on a dismounted widget
+  //   throws an error. The 'mounted' property is true while the State is
+  //   still in the tree. Always check it after an await before using context
+  //   or calling setState.
+  Future<void> _navigateToAdd() async {
+    // Push the add screen and wait for it to pop back.
+    // The result is the Todo the user created, or null if they pressed back.
+    final newTodo = await Navigator.push<Todo>(
+      context,
+      MaterialPageRoute(builder: (context) => const AddTodoScreen()),
+    );
+
+    // IMPORTANT: Check mounted after every await.
+    // If the user navigated away from TodoHomeScreen while AddTodoScreen
+    // was open (rare but possible), 'this' State is no longer mounted.
+    // Calling setState on it would throw an error.
+    if (!mounted) return;
+
+    // Only add if the user actually submitted (not null = they saved)
+    if (newTodo != null) {
+      setState(() {
+        // Spread operator [...existing, newItem] creates a new list
+        // with all existing todos plus the new one at the end.
+        //
+        // .NET Parallel: _todos.Add(newTodo) — but immutable style.
+        _todos = [..._todos, newTodo];
+      });
+    }
+  }
+
+  // ── _navigateToEdit() — Navigate to EditTodoScreen ───────────────────────
+  //
+  // Passes the current todo to EditTodoScreen and passes _deleteTodo
+  // as the onDelete callback.
+  Future<void> _navigateToEdit(Todo todo) async {
+    final updatedTodo = await Navigator.push<Todo>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditTodoScreen(
+          todo: todo,
+          // Pass _deleteTodo as the onDelete callback.
+          // We use a closure to capture the specific todo's id.
+          // When EditTodoScreen calls onDelete(), this lambda runs,
+          // which calls _deleteTodo with the correct id.
+          onDelete: () => _deleteTodo(todo.id),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // updatedTodo is null if user pressed back or deleted (delete calls its
+    // own Navigator.pop without a result). Only update if there's a real result.
+    if (updatedTodo != null) {
+      setState(() {
+        // Replace the old todo with the updated version, keep everything else.
+        _todos = _todos.map((t) {
+          return t.id == updatedTodo.id ? updatedTodo : t;
+        }).toList();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Todos')),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        itemCount: _todos.length,
-        itemBuilder: (context, index) {
-          final Todo currentTodo = _todos[index];
 
-          return TodoItem(
-            todo: currentTodo,
+      body: _todos.isEmpty
+          // ── Empty state ────────────────────────────────────────────────
+          // When all todos are deleted, show a friendly empty state instead
+          // of a blank screen. Good UX — users know what to do next.
+          ? const Center(
+              child: Text(
+                'No todos yet.\nTap + to add your first one!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          // ── Todo list ──────────────────────────────────────────────────
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              itemCount: _todos.length,
+              itemBuilder: (context, index) {
+                final Todo currentTodo = _todos[index];
+                return TodoItem(
+                  todo: currentTodo,
+                  onToggle: () => _toggleTodo(currentTodo.id),
+                  // Pass a closure that navigates to edit for this specific todo.
+                  // The closure captures 'currentTodo' from this iteration.
+                  onEdit: () => _navigateToEdit(currentTodo),
+                );
+              },
+            ),
 
-            // Pass _toggleTodo as the onToggle callback.
-            //
-            // () => _toggleTodo(currentTodo.id)  is an anonymous function
-            // (a closure) that captures currentTodo.id.
-            //
-            // Why not just:  onToggle: _toggleTodo
-            //   Because _toggleTodo takes a String argument (the id),
-            //   but onToggle expects VoidCallback (no arguments).
-            //   The closure bridges this: it takes no args and calls
-            //   _toggleTodo with the correct id captured from the loop.
-            //
-            // .NET Parallel:
-            //   onToggle: () => ToggleTodo(currentTodo.Id)
-            onToggle: () => _toggleTodo(currentTodo.id),
-          );
-        },
+      // ── FloatingActionButton ───────────────────────────────────────────
+      //
+      // The FAB is the primary action button in Material Design.
+      // Floating means it floats above the content in the bottom-right corner.
+      //
+      // onPressed calls _navigateToAdd() — because that method is async,
+      // we could also write: onPressed: () => _navigateToAdd()
+      // but the tear-off form is clean: onPressed: _navigateToAdd
+      //
+      // .NET Parallel: The primary toolbar button or a prominent CTA button.
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToAdd,
+        tooltip: 'Add Todo',
+        child: const Icon(Icons.add),
       ),
     );
   }
