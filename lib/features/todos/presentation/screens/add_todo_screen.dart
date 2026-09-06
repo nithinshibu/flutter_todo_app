@@ -1,22 +1,10 @@
-// add_todo_screen.dart — The screen for creating a new Todo.
+// add_todo_screen.dart — Screen for creating a new Todo.
 //
-// Responsibility:
-//   - Present a form with fields for the new Todo
-//   - Validate the input (title is required)
-//   - Return the new Todo to the caller via Navigator.pop
-//
-// Key concepts introduced in this file:
-//   - initState() / dispose() — StatefulWidget lifecycle methods
-//   - TextEditingController — controls a TextField
-//   - GlobalKey<FormState> — allows programmatic access to the Form
-//   - Form + TextFormField — structured input with built-in validation
-//   - DropdownButtonFormField — select from a list of options
-//   - Navigator.pop(context, result) — navigate back AND pass data to caller
-//
-// .NET Parallel:
-//   This is like a Modal Dialog / Flyout in MAUI or WPF that returns a
-//   result when the user clicks OK. The caller awaits the navigation and
-//   receives the created object back.
+// Updated in Subtask 1.6:
+//   - Added category DropdownButtonFormField
+//   - Added date picker (showDatePicker) for optional due date
+//   - Introduced: showDatePicker, DateTime, DateTime?, date formatting
+//   - Introduced: Wrap widget (used in form layout)
 
 import 'package:flutter/material.dart';
 import 'package:todo_app/features/todos/models/todo.dart';
@@ -29,126 +17,99 @@ class AddTodoScreen extends StatefulWidget {
 }
 
 class _AddTodoScreenState extends State<AddTodoScreen> {
-  // GlobalKey<FormState> — A unique identifier for this Form widget.
-  //
-  // It lets us programmatically call:
-  //   _formKey.currentState!.validate()  — runs all field validators
-  //
-  // Think of it like a handle to the form object.
-  //
-  // .NET Parallel: Like accessing a named control from code-behind in WPF:
-  //   myForm.Validate();
   final _formKey = GlobalKey<FormState>();
-
-  // TextEditingController — Reads and writes the text inside a TextField.
-  //
-  // When the user types in a TextField, the controller holds the current text.
-  // You read it with: _titleController.text
-  //
-  // TextEditingControllers MUST be disposed when the widget is removed from
-  // the tree — otherwise they leak memory (they hold listeners internally).
-  //
-  // .NET Parallel: Like a data-bound property on a ViewModel, or like
-  //   reading textBox.Text in WinForms — but with explicit lifecycle management.
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-
-  // The selected priority — starts at medium as a sensible default.
-  // This is a normal mutable State variable, not a controller.
   TodoPriority _selectedPriority = TodoPriority.medium;
+  TodoCategory _selectedCategory = TodoCategory.personal;
 
-  // ── initState() — Lifecycle Method ────────────────────────────────────────
+  // _selectedDate — The optional due date chosen by the user.
   //
-  // Called ONCE, immediately after the State object is created and
-  // before the first build(). Use it for one-time initialization.
+  // DateTime? means this variable can hold:
+  //   - A DateTime object (user picked a date)
+  //   - null (user hasn't picked a date — the default)
   //
-  // For AddTodoScreen we don't need it (our controllers start empty).
-  // EditTodoScreen will use initState() to pre-fill the fields.
-  //
-  // .NET Parallel: Like the constructor of a ViewModel, or OnInitialized()
-  //   in a Blazor component.
-  //
-  // (Not overriding initState here — included as a comment for teaching.)
+  // .NET Parallel: DateTime? DueDate { get; set; } = null;
+  DateTime? _selectedDate;
 
-  // ── dispose() — Lifecycle Method ──────────────────────────────────────────
-  //
-  // Called when this State object is permanently removed from the tree
-  // (i.e., when the user navigates back from this screen).
-  //
-  // ALWAYS dispose your controllers here.
-  // If you forget, the controllers keep listening to keyboard events and
-  // holding references even after the screen is gone — a memory leak.
-  //
-  // Rule: For every controller you create, there must be a dispose() call.
-  //
-  // .NET Parallel: IDisposable.Dispose() in C# — cleanup resources.
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    super.dispose(); // Always call super.dispose() last
+    super.dispose();
   }
 
-  // _submit() — Validates the form and pops back with the new Todo.
+  // _pickDate() — Opens the system date picker dialog.
   //
-  // Navigator.pop(context, result) does two things:
-  //   1. Removes this screen from the navigation stack (goes back)
-  //   2. Passes 'result' back to the caller that pushed this screen
+  // showDatePicker() is a built-in Flutter function that displays
+  // the platform's native date picker UI (Material calendar dialog).
   //
-  // The caller (TodoHomeScreen) awaits the navigation push and receives
-  // the Todo object here.
+  // It returns a Future<DateTime?> — the picked date, or null if
+  // the user dismissed the dialog without selecting.
   //
   // .NET Parallel:
-  //   dialog.ShowDialog() returns DialogResult.OK, and the caller reads
-  //   dialog.ResultValue. In Flutter, pop carries the value directly.
+  //   var picker = new DatePicker();
+  //   picker.ShowAsync();  // WinUI DatePickerFlyout
+  //   or DateTimePickerDialog in Android
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      // initialDate: what's selected when the calendar opens
+      initialDate: _selectedDate ?? DateTime.now(),
+      // firstDate: earliest selectable date (5 years ago)
+      firstDate: DateTime(DateTime.now().year - 5),
+      // lastDate: latest selectable date (5 years from now)
+      lastDate: DateTime(DateTime.now().year + 5),
+    );
+
+    // Always check 'mounted' after any await — especially important here
+    // because the user could navigate back while the date picker is open.
+    if (!mounted) return;
+
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  // _formatDate() — Formats a DateTime into a readable string.
+  //
+  // Flutter does not include a date formatting library by default.
+  // We use manual string formatting for now (padLeft adds leading zeros).
+  // In larger projects, the 'intl' package provides locale-aware formatting.
+  //
+  // .NET Parallel:
+  //   date.ToString("dd/MM/yyyy")   or  date.ToShortDateString()
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
   void _submit() {
-    // _formKey.currentState!.validate() calls the 'validator' function
-    // on every TextFormField inside the Form.
-    // Returns true only if ALL validators return null (no error).
     if (_formKey.currentState!.validate()) {
       final newTodo = Todo(
-        // Generate a temporary unique ID using the current timestamp.
-        // In a real app this would come from a database auto-increment
-        // or a UUID package. For now, milliseconds since epoch is unique enough.
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text
-            .trim(), // .trim() removes leading/trailing whitespace
+        title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         priority: _selectedPriority,
+        category: _selectedCategory,
         isCompleted: false,
+        dueDate: _selectedDate, // null if user didn't pick a date
       );
-
-      // Pop back to TodoHomeScreen and pass the new Todo as the result.
       Navigator.pop(context, newTodo);
     }
-    // If validate() returns false, the fields automatically show
-    // their error messages — no extra code needed.
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Todo')),
-
-      // Use a Form widget to group all TextFormFields together.
-      // Form provides the validation infrastructure — it connects
-      // all child TextFormFields to a single _formKey.
       body: Form(
         key: _formKey,
-
-        // ListView instead of Column here so the keyboard doesn't
-        // cause an overflow when it appears on small screens.
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // TextFormField = TextField + validation support.
-            //
-            // 'validator' is called when _formKey.currentState!.validate() runs.
-            // Return a non-null String to show an error message.
-            // Return null to indicate the value is valid.
-            //
-            // .NET Parallel: DataAnnotation validation like [Required] on a model,
-            //   or FluentValidation rules.
+            // ── Title ───────────────────────────────────────────────────
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(
@@ -156,40 +117,33 @@ class _AddTodoScreenState extends State<AddTodoScreen> {
                 hintText: 'What needs to be done?',
                 border: OutlineInputBorder(),
               ),
-              autofocus: true, // keyboard opens automatically
+              autofocus: true,
               textCapitalization: TextCapitalization.sentences,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a title'; // error message shown below field
+                  return 'Please enter a title';
                 }
-                return null; // valid
+                return null;
               },
             ),
 
             const SizedBox(height: 16.0),
 
-            // Description is optional — no validator needed.
+            // ── Description ─────────────────────────────────────────────
             TextFormField(
               controller: _descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Description',
-                hintText: 'Add some details (optional)',
+                labelText: 'Description (optional)',
+                hintText: 'Add some details...',
                 border: OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.sentences,
-              maxLines: 3, // allows multi-line input
+              maxLines: 3,
             ),
 
             const SizedBox(height: 16.0),
 
-            // DropdownButtonFormField — a dropdown list that integrates
-            // with Form validation like TextFormField does.
-            //
-            // 'value' is the currently selected item.
-            // 'items' is the list of selectable options.
-            // 'onChanged' fires when the user picks a different item.
-            //
-            // .NET Parallel: ComboBox in WPF/MAUI, <select> in Blazor.
+            // ── Priority ─────────────────────────────────────────────────
             DropdownButtonFormField<TodoPriority>(
               initialValue: _selectedPriority,
               decoration: const InputDecoration(
@@ -205,17 +159,88 @@ class _AddTodoScreenState extends State<AddTodoScreen> {
                 DropdownMenuItem(value: TodoPriority.low, child: Text('Low')),
               ],
               onChanged: (value) {
-                if (value != null) {
-                  // setState to rebuild the dropdown showing the new selection
-                  setState(() => _selectedPriority = value);
-                }
+                if (value != null) setState(() => _selectedPriority = value);
               },
+            ),
+
+            const SizedBox(height: 16.0),
+
+            // ── Category ─────────────────────────────────────────────────
+            DropdownButtonFormField<TodoCategory>(
+              initialValue: _selectedCategory,
+              decoration: const InputDecoration(
+                labelText: 'Category',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: TodoCategory.personal,
+                  child: Text('Personal'),
+                ),
+                DropdownMenuItem(value: TodoCategory.work, child: Text('Work')),
+                DropdownMenuItem(
+                  value: TodoCategory.learning,
+                  child: Text('Learning'),
+                ),
+                DropdownMenuItem(
+                  value: TodoCategory.health,
+                  child: Text('Health'),
+                ),
+                DropdownMenuItem(
+                  value: TodoCategory.shopping,
+                  child: Text('Shopping'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedCategory = value);
+              },
+            ),
+
+            const SizedBox(height: 16.0),
+
+            // ── Due Date ─────────────────────────────────────────────────
+            //
+            // We use a Row containing:
+            //   - OutlinedButton.icon: opens the date picker
+            //   - TextButton: clears the date (only shown when a date is set)
+            //
+            // Why a button and not a TextFormField for dates?
+            //   TextFormField expects keyboard input. Dates are best picked
+            //   from a calendar — so we use a button that triggers showDatePicker.
+            Row(
+              children: [
+                // OutlinedButton.icon — a button with both an icon and a label.
+                // The icon changes based on whether a date is selected.
+                OutlinedButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 18.0),
+                  label: Text(
+                    _selectedDate != null
+                        ? _formatDate(_selectedDate!) // show the date
+                        : 'Set due date (optional)', // placeholder
+                  ),
+                ),
+
+                // Only show the Clear button if a date is actually selected.
+                // This is collection-if in Dart:
+                //   if (condition) widgetToInclude
+                // It conditionally includes a widget in the list.
+                //
+                // .NET Parallel:
+                //   Visibility="{Binding HasDueDate}" in XAML
+                //   or conditional rendering in Blazor: @if (hasDueDate) { ... }
+                if (_selectedDate != null) ...[
+                  const SizedBox(width: 8.0),
+                  TextButton(
+                    onPressed: () => setState(() => _selectedDate = null),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ],
             ),
 
             const SizedBox(height: 24.0),
 
-            // FilledButton is the Material 3 primary action button style.
-            // It has a solid background (the theme's primary color).
             FilledButton(onPressed: _submit, child: const Text('Add Todo')),
           ],
         ),

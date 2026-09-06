@@ -2,45 +2,40 @@
 //
 // Responsibility:
 //   - Define what a Todo IS (its properties and types)
-//   - Define the TodoPriority enum
+//   - Define enums: TodoPriority, TodoCategory
+//
+// Updated in Subtask 1.6:
+//   - Added TodoCategory enum (personal, work, learning, health, shopping)
+//   - Added 'category' field (required, replaces no-category state)
+//   - Added 'dueDate' field (DateTime? — optional, nullable)
+//   - Updated copyWith() with clearDueDate parameter
 //
 // What this file does NOT contain:
 //   - No Flutter imports
 //   - No UI code
 //   - No database mapping (yet)
 //   - No JSON serialization (yet)
-//
-// .NET Parallel:
-//   This is equivalent to a C# model class or record — a plain data
-//   container that describes the shape of a domain object.
-//
-//   C#:    public record Todo(string Title, bool IsCompleted, ...)
-//   Dart:  class Todo { final String title; final bool isCompleted; ... }
 
-// TodoPriority enum — Represents the urgency level of a Todo item.
-//
-// Why an enum and not a String?
-//   If priority were a String, nothing would stop code from assigning
-//   'URGENT', 'Hgh', or '' — typos would be silent bugs.
-//   An enum makes the set of valid values finite and compile-time checked.
-//
-// .NET Parallel:
-//   public enum TodoPriority { Low, Medium, High }
-//   Dart enums work almost identically.
+// ── TodoPriority ─────────────────────────────────────────────────────────────
 enum TodoPriority { low, medium, high }
 
-// Todo — The core data class for a single Todo item.
+// ── TodoCategory ─────────────────────────────────────────────────────────────
 //
-// Each Todo has five fields for this stage of the application.
-// We will add more fields (category, due date, etc.) in later subtasks
-// when the application actually needs them.
+// Represents what area of life a Todo belongs to.
 //
-// Why a class and not a Map<String, dynamic>?
-//   A class gives you:
-//   1. Named, typed fields — no guessing what keys exist or their types.
-//   2. IDE autocomplete — todo.title, not todo['title'].
-//   3. Compile-time safety — the compiler catches missing fields.
-//   4. A clear place to add methods later (e.g., copyWith, toJson).
+// Why an enum instead of a free-form String like 'Work' or 'Personal'?
+//   Same reason as TodoPriority: the set of valid values is finite and
+//   known at compile time. Typos become compiler errors, not runtime bugs.
+//   It also makes switch expressions exhaustive — the compiler forces you
+//   to handle every case.
+//
+// .NET Parallel:
+//   public enum TodoCategory { Personal, Work, Learning, Health, Shopping }
+enum TodoCategory { personal, work, learning, health, shopping }
+
+// ── Todo ─────────────────────────────────────────────────────────────────────
+//
+// Updated in Subtask 1.6 to include category and optional due date.
 //
 // .NET Parallel:
 //   public class Todo {
@@ -48,89 +43,88 @@ enum TodoPriority { low, medium, high }
 //       public string Title { get; }
 //       public string Description { get; }
 //       public TodoPriority Priority { get; }
+//       public TodoCategory Category { get; }
 //       public bool IsCompleted { get; }
+//       public DateTime? DueDate { get; }   // nullable
 //   }
 class Todo {
-  // 'final' means each field is assigned once in the constructor
-  // and never changed afterward. Todos are immutable value objects.
-  //
-  // To "change" a Todo (e.g. toggle isCompleted), we use copyWith() below
-  // to create a brand-new Todo instance with the updated field.
-  // The original Todo is discarded — we never mutate in place.
-  //
-  // .NET Parallel: { get; init; } properties or readonly fields.
   final String id;
   final String title;
   final String description;
   final TodoPriority priority;
+
+  // category — The area of life this Todo belongs to.
+  // Required, defaults to personal.
+  final TodoCategory category;
+
   final bool isCompleted;
 
-  // Constructor using named parameters.
+  // dueDate — The optional deadline for this Todo.
   //
-  // Why named parameters (the curly braces {})?
-  //   They force the caller to name each argument, making call sites
-  //   self-documenting and order-independent:
+  // The trailing '?' makes this type NULLABLE — it can hold either a
+  // DateTime value OR null (meaning "no due date set").
   //
-  //   Todo(
-  //     id: '1',
-  //     title: 'Learn Flutter',     ← clear what each value means
-  //     description: '...',
-  //     priority: TodoPriority.high,
-  //     isCompleted: false,
-  //   )
-  //
-  // 'required' means the caller MUST provide this argument.
-  //   Without it, the parameter would be optional (null-safe Dart would
-  //   require a nullable type or a default value instead).
+  // Null safety in Dart:
+  //   DateTime  dueDate  → must always have a value — compiler error if null
+  //   DateTime? dueDate  → may be null — caller must check before using
   //
   // .NET Parallel:
-  //   public Todo(string id, string title, ...) — positional and required.
-  //   Dart's named + required combination gives you the best of both worlds.
-  //
-  // 'this.id' is shorthand for: id = id (assigns the parameter to the field).
+  //   DateTime? DueDate { get; }   // same syntax in C#!
+  //   Nullable<DateTime> DueDate   // equivalent long form
+  final DateTime? dueDate;
+
   const Todo({
     required this.id,
     required this.title,
     required this.description,
     required this.priority,
-    this.isCompleted = false, // optional — defaults to false (not completed)
+    this.category = TodoCategory.personal, // optional, defaults to personal
+    this.isCompleted = false,
+    this.dueDate, // optional, defaults to null (no due date)
   });
 
-  // copyWith() — Creates a new Todo with some fields replaced.
+  // copyWith() — Updated in Subtask 1.6.
   //
-  // Because all fields are 'final', we cannot do:
-  //   todo.isCompleted = true;   ← compile error!
+  // The challenge with nullable fields:
+  //   The ?? (null-coalescing) trick works for non-nullable fields:
+  //     title: title ?? this.title   → if title arg is null, keep existing
   //
-  // Instead, we call copyWith() to get a brand-new Todo object that
-  // has the same values as the original, except for the fields we override:
+  //   But for a nullable field like DateTime?:
+  //     dueDate: dueDate ?? this.dueDate
+  //   This CANNOT distinguish between:
+  //     A) Caller didn't provide dueDate  → keep existing (dueDate param = null)
+  //     B) Caller explicitly wants to CLEAR dueDate → set to null (dueDate param = null)
+  //   Both cases pass null — so ?? can't tell them apart!
   //
-  //   final updated = todo.copyWith(isCompleted: true);
-  //
-  // The original 'todo' is not touched. We replace it in our list.
-  // This is called the immutable update pattern.
+  // Solution: a separate 'clearDueDate' boolean flag.
+  //   clearDueDate: true  → set dueDate to null  (explicit clear)
+  //   clearDueDate: false + dueDate: someDate → use the new date
+  //   clearDueDate: false + dueDate: null  → keep existing date (no change)
   //
   // .NET Parallel:
-  //   C# records support the 'with' expression:
-  //     var updated = todo with { IsCompleted = true };
-  //   copyWith() is the Dart equivalent — done manually because
-  //   Dart doesn't have built-in 'with' expressions yet.
-  //
-  // Each parameter uses the nullable override trick:
-  //   isCompleted ?? this.isCompleted
-  //   → use the provided value if not null, otherwise keep the existing value.
+  //   There is no exact equivalent — C# `with` expressions handle this
+  //   naturally (todo with { DueDate = null } explicitly sets to null).
+  //   Dart requires this extra parameter because it lacks `with` expressions.
   Todo copyWith({
     String? id,
     String? title,
     String? description,
     TodoPriority? priority,
+    TodoCategory? category,
     bool? isCompleted,
+    DateTime? dueDate,
+    bool clearDueDate = false, // explicitly set dueDate to null when true
   }) {
     return Todo(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
       priority: priority ?? this.priority,
+      category: category ?? this.category,
       isCompleted: isCompleted ?? this.isCompleted,
+      // Ternary: if clearDueDate is true → null, otherwise use provided
+      // dueDate or fall back to current value.
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
     );
   }
 }

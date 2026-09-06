@@ -23,40 +23,49 @@ class TodoHomeScreen extends StatefulWidget {
 
 class _TodoHomeScreenState extends State<TodoHomeScreen> {
   List<Todo> _todos = [
-    const Todo(
+    Todo(
       id: '1',
       title: 'Learn Flutter',
       description: 'Understand widgets, layouts, and the widget tree',
       priority: TodoPriority.high,
+      category: TodoCategory.learning,
       isCompleted: false,
+      dueDate: DateTime.now().add(const Duration(days: 7)),
     ),
-    const Todo(
+    Todo(
       id: '2',
       title: 'Build Todo Application',
       description: 'Create a production-style learning project step by step',
       priority: TodoPriority.medium,
+      category: TodoCategory.learning,
       isCompleted: false,
+      dueDate: DateTime.now().add(const Duration(days: 14)),
     ),
     const Todo(
       id: '3',
       title: 'Understand Widget Composition',
       description: 'Practice combining StatelessWidgets into a real UI',
       priority: TodoPriority.low,
+      category: TodoCategory.learning,
       isCompleted: true,
+      // No dueDate — demonstrates nullable field with null value
     ),
     const Todo(
       id: '4',
       title: 'Explore pubspec.yaml',
       description: 'Learn how Flutter manages packages and assets',
       priority: TodoPriority.low,
+      category: TodoCategory.learning,
       isCompleted: true,
     ),
-    const Todo(
+    Todo(
       id: '5',
       title: 'Study the Dart Language',
       description: 'Learn classes, enums, generics, and null safety',
       priority: TodoPriority.high,
+      category: TodoCategory.learning,
       isCompleted: false,
+      dueDate: DateTime.now().add(const Duration(days: 3)),
     ),
   ];
 
