@@ -1,63 +1,126 @@
-// TodoHomeScreen is the first visible screen of the Todo application.
+// TodoHomeScreen — The main Todo list screen.
 //
-// Responsibility:
-//   - Display the main Todo page
-//   - Provide a Scaffold (app bar + body structure)
-//   - Serve as the landing screen for the MaterialApp
+// Responsibility (updated in Subtask 1.3):
+//   - Own the temporary in-memory mock Todo data
+//   - Display the full Todo list using ListView.builder
+//   - Compose the list using the reusable TodoItem widget
 //
-// What it does NOT do (yet):
-//   - No actual Todo list displayed
-//   - No CRUD operations
-//   - No state management
+// What this screen does NOT do:
+//   - No state management (data is static for now)
+//   - No Add/Edit/Delete (coming in Subtask 1.4 and 1.5)
+//   - No database or persistence (coming in Subtask 1.8)
 //
-// Think of this as the "landing page" of the feature.
-// Future subtasks will fill in the real Todo content here.
+// The mock data here is intentionally temporary.
+// In Subtask 1.4 it will be moved into a StatefulWidget's State.
+// In Subtask 1.7 it will move into a Riverpod provider.
 
 import 'package:flutter/material.dart';
+import 'package:todo_app/features/todos/models/todo.dart';
+import 'package:todo_app/features/todos/presentation/widgets/todo_item.dart';
 
-// StatelessWidget is used here because this screen has no
-// internal state that changes over time. It simply describes
-// a fixed UI based on its configuration.
-//
-// .NET Parallel: Imagine this as a read-only Page/View with no
-// code-behind variables being mutated.
 class TodoHomeScreen extends StatelessWidget {
-  // The 'const' constructor means Flutter can create this widget at
-  // compile time — a free performance optimization.
   const TodoHomeScreen({super.key});
 
-  // build() is called by Flutter whenever this widget needs to be drawn.
-  // It receives a BuildContext which represents this widget's location
-  // in the widget tree — similar to a scoped service provider in .NET DI.
-  //
-  // The return type is Widget. Everything you see on screen is a Widget.
   @override
   Widget build(BuildContext context) {
-    // Scaffold provides the standard visual structure of a Material page:
-    //   - appBar  → top navigation bar
-    //   - body    → the main content area
-    //   - floatingActionButton, drawer, bottomNavigationBar (not used yet)
+    // ── Temporary Mock Data ────────────────────────────────────────────────
     //
-    // .NET Parallel: Think of Scaffold as a Page template or Shell in
-    // .NET MAUI — it gives you a consistent page layout without building it yourself.
-    // Note: Scaffold and AppBar do not have const constructors because
-    // they have many optional fields with non-const defaults.
-    // We apply 'const' only to the individual leaf widgets that support it.
+    // List<Todo> is a generic typed list — it can only hold Todo objects.
+    //
+    // Why List<Todo> and not var or dynamic?
+    //   Type safety: the Dart compiler knows what's in the list.
+    //   If you accidentally tried to add a String, it would be a compile error.
+    //
+    // .NET Parallel:
+    //   List<Todo> todos = new List<Todo> { ... }
+    //   or:  IList<Todo> todos = [ ... ]  (C# 12 collection expression)
+    //
+    // The 'final' keyword means the list variable itself cannot be reassigned
+    // (todos = someOtherList would be an error), but the list contents can
+    // change. We'll address mutability when we introduce setState() in 1.4.
+    final List<Todo> todos = [
+      const Todo(
+        id: '1',
+        title: 'Learn Flutter',
+        description: 'Understand widgets, layouts, and the widget tree',
+        priority: TodoPriority.high,
+        isCompleted: false,
+      ),
+      const Todo(
+        id: '2',
+        title: 'Build Todo Application',
+        description: 'Create a production-style learning project step by step',
+        priority: TodoPriority.medium,
+        isCompleted: false,
+      ),
+      const Todo(
+        id: '3',
+        title: 'Understand Widget Composition',
+        description: 'Practice combining StatelessWidgets into a real UI',
+        priority: TodoPriority.low,
+        isCompleted: true, // this one is already done
+      ),
+      const Todo(
+        id: '4',
+        title: 'Explore pubspec.yaml',
+        description: 'Learn how Flutter manages packages and assets',
+        priority: TodoPriority.low,
+        isCompleted: true,
+      ),
+      const Todo(
+        id: '5',
+        title: 'Study the Dart Language',
+        description: 'Learn classes, enums, generics, and null safety',
+        priority: TodoPriority.high,
+        isCompleted: false,
+      ),
+    ];
+
+    // ── Screen Layout ──────────────────────────────────────────────────────
     return Scaffold(
-      // AppBar is the horizontal bar across the top of the screen.
-      // It displays the page title and can later hold action buttons.
-      //
-      // .NET Parallel: Similar to a TitleBar or NavigationBar in MAUI/WPF.
       appBar: AppBar(title: const Text('My Todos')),
 
-      // body is the main content area below the AppBar.
-      // Center is a layout widget that positions its single child
-      // in the exact middle of the available space.
-      body: const Center(
-        child: Text(
-          'Todo application foundation is ready.\nTodo list coming soon!',
-          textAlign: TextAlign.center,
-        ),
+      // ── ListView.builder ───────────────────────────────────────────────
+      //
+      // Why ListView.builder instead of a plain Column?
+      //
+      //   Column renders ALL its children immediately, even those off-screen.
+      //   ListView.builder is LAZY — it only creates the widgets for items
+      //   that are currently visible (or just about to scroll into view).
+      //
+      //   For 5 items there is no difference. For 500 or 5000 items,
+      //   ListView.builder is dramatically more efficient.
+      //
+      //   Think of it like:
+      //   - Column → rendering the entire DataGrid eagerly
+      //   - ListView.builder → virtual scrolling / windowing in WPF
+      //
+      // itemCount: tells Flutter how many items exist in total.
+      //   Flutter uses this to know when to stop calling itemBuilder.
+      //
+      // itemBuilder: a function called once per visible item.
+      //   Flutter calls it with the BuildContext and the item index (0-based).
+      //   It must return the Widget for that item.
+      //
+      //   (context, index) => ...
+      //   is a Dart anonymous function (lambda).
+      //   .NET Parallel: (context, index) => new TodoItemView(todos[index])
+      //
+      body: ListView.builder(
+        // A small amount of padding above and below the list
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        itemCount: todos.length,
+        itemBuilder: (context, index) {
+          // todos[index] accesses the Todo at position 'index'.
+          // This is called lazily by Flutter only when the item
+          // needs to be displayed.
+          final Todo currentTodo = todos[index];
+
+          // Return a TodoItem for this Todo.
+          // The screen doesn't know how a single Todo looks — that's
+          // TodoItem's job. This separation is the key principle here.
+          return TodoItem(todo: currentTodo);
+        },
       ),
     );
   }
